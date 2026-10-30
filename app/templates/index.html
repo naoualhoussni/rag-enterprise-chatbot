@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Chatbot Enterprise - Mistral AI (Niveau 4)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
+  <script>
+    // Supprime l'avertissement de développement de Tailwind Play CDN dans la console
+    (function() {
+      const _origWarn = console.warn;
+      console.warn = function(...args) {
+        const fullMsg = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a) || '')).join(' ');
+        if (fullMsg.includes('cdn.tailwindcss.com') || fullMsg.includes('Tailwind CSS in production')) {
+          return;
+        }
+        _origWarn.apply(console, args);
+      };
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="h-full flex flex-col md:flex-row text-slate-800 antialiased overflow-hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col h-auto md:h-full z-10 shrink-0 shadow-sm">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 via-violet-600 to-amber-500 flex items-center justify-center text-white shadow-md shadow-violet-500/20">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg text-slate-900 leading-tight">RAG Enterprise</h1>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+            Niveau 4 • Expert Prod
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Badge -->
+    <div class="px-5 pt-3">
+      <div class="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-slate-500">Session :</span>
+          <span id="sessionDisplay" class="font-mono font-semibold text-slate-700 truncate max-w-[120px]"></span>
+        </div>
+        <button onclick="newSession()" class="text-violet-600 hover:text-violet-700 font-semibold hover:underline" title="Nouvel espace de travail">
+          + Nouveau
+        </button>
+      </div>
+    </div>
+
+    <div class="p-5 flex-1 overflow-y-auto space-y-5">
+      <!-- Upload Multi-PDF -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-500">1. Documents & Connaissances</label>
+          <span class="text-[10px] text-violet-600 font-medium bg-violet-50 px-2 py-0.5 rounded-full">Multi-PDF</span>
+        </div>
+        <div id="dropZone" class="relative group border-2 border-dashed border-slate-300 hover:border-violet-500 rounded-2xl p-5 text-center transition-all bg-slate-50/50 hover:bg-violet-50/20 cursor-pointer">
+          <input type="file" id="pdfFileInput" accept="application/pdf" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          <div class="flex flex-col items-center">
+            <div class="w-11 h-11 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <p class="text-xs font-semibold text-slate-700">Déposer 1 ou plusieurs PDF</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Indexation vectorielle et plein texte</p>
+          </div>
+        </div>
+        <div id="uploadStatus" class="mt-2.5 hidden">
+          <div id="statusContent" class="p-2.5 rounded-xl text-xs font-medium flex items-center gap-2"></div>
+        </div>
+      </div>
+
+      <!-- Multi-Documents Filtering -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-500">Filtrage sélectif</label>
+          <div class="flex items-center gap-2 text-xs">
+            <button onclick="toggleSelectAll()" id="toggleSelectAllBtn" class="text-violet-600 hover:text-violet-700 font-medium text-[11px]">Tout déchoisir</button>
+            <span class="text-slate-300">|</span>
+            <button onclick="loadDocuments()" class="text-slate-500 hover:text-slate-700 font-medium text-[11px]">Actualiser</button>
+          </div>
+        </div>
+        <div id="filterSummary" class="text-[11px] text-slate-500 mb-2 italic">Recherche sur tous les documents</div>
+        <div id="documentsList" class="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+          <div id="loadingDocs" class="text-xs text-slate-400 italic p-3 text-center bg-slate-50 rounded-xl border border-slate-100">
+            Chargement...
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="space-y-2">
+        <button onclick="exporterRapport()" class="w-full py-2.5 px-3 text-xs font-semibold text-indigo-700 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-200 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm">
+          <span>📥</span>
+          <span>Télécharger le Rapport d'Analyse</span>
+        </button>
+
+        <button onclick="evaluerQualite()" class="w-full py-2.5 px-3 text-xs font-semibold text-emerald-700 hover:text-white hover:bg-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm">
+          <span>📊</span>
+          <span>Audit Qualité RAG (Métriques Ragas)</span>
+        </button>
+
+        <button id="purgeBtn" onclick="purgeMyDocuments()" class="w-full py-2 px-3 text-xs font-medium text-red-600 hover:text-white hover:bg-red-600 bg-red-50/60 border border-red-200/60 rounded-xl transition-all flex items-center justify-center gap-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Effacer mes documents
+        </button>
+      </div>
+
+      <!-- Niveau 4 Enterprise Badges -->
+      <div class="p-3 bg-gradient-to-br from-slate-50 to-amber-50/30 border border-slate-200/70 rounded-xl space-y-1.5 text-[11px] text-slate-700">
+        <div class="font-bold text-slate-900 flex items-center gap-1.5">
+          <span>🏆</span><span>Architecture Enterprise Niveau 4 :</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-violet-700">
+          <span>🔍</span><span>Recherche Hybride (Dense + Sparse RRF)</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-amber-700">
+          <span>⚡</span><span>Cache Sémantique (< 10ms)</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-emerald-700">
+          <span>🛡️</span><span>Corrective RAG & Score de Confiance</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-blue-700">
+          <span>📑</span><span>Export Markdown & Auditabilité</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-3.5 border-t border-slate-100 bg-slate-50/50">
+      <button id="clearChatBtn" class="w-full py-2 px-3 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center gap-2">
+        Effacer l'historique du chat
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CHAT -->
+  <main class="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden">
+    <header class="h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-3">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+        <h2 class="font-semibold text-slate-800 text-sm md:text-base">Assistant RAG Enterprise (Niveau 4)</h2>
+        <span class="hidden sm:inline-flex px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+          Mistral Nemo • pgvector RRF
+        </span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div id="targetDocsHeader" class="text-xs text-slate-500 hidden md:block">
+          Cible : Tous les documents
+        </div>
+        <button onclick="exporterRapport()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-1.5">
+          <span>📥</span> Rapport
+        </button>
+      </div>
+    </header>
+
+    <div id="chatMessages" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+      <div class="max-w-2xl mx-auto my-6 text-center">
+        <div class="w-14 h-14 bg-gradient-to-tr from-indigo-600 via-violet-600 to-amber-500 rounded-2xl mx-auto flex items-center justify-center text-white shadow-lg shadow-violet-500/20 mb-4">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-slate-800">Intelligence Documentaire Multi-Fichiers Enterprise</h3>
+        <p class="text-sm text-slate-500 mt-1 max-w-md mx-auto">Recherche hybride vectorielle + plein texte, détection d'anti-hallucination (CRAG), cache sémantique ultra-rapide et rapport d'audit.</p>
+        <div class="mt-6 flex flex-wrap justify-center gap-2">
+          <button onclick="useSuggestion(this.innerText)" class="text-xs bg-white hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-full transition-all shadow-sm">Compare les points clés entre les documents</button>
+          <button onclick="useSuggestion(this.innerText)" class="text-xs bg-white hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-full transition-all shadow-sm">Quels sont les chiffres et obligations mentionnés ?</button>
+          <button onclick="useSuggestion(this.innerText)" class="text-xs bg-white hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-full transition-all shadow-sm">Fais une synthèse exécutive structurée</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal d'évaluation RAG (Ragas metrics) -->
+    <div id="evalModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+          <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+            <span>📊</span> Rapport Qualité RAG (Type Ragas)
+          </h3>
+          <button onclick="closeEvalModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+        </div>
+        <div id="evalModalBody" class="space-y-4 text-sm text-slate-600">
+          <div class="flex items-center justify-center p-8">
+            <span class="w-6 h-6 border-2 border-violet-600 border-t-transparent rounded-full animate-spin"></span>
+            <span class="ml-3 font-medium text-slate-700">Calcul des métriques sur la question...</span>
+          </div>
+        </div>
+        <div class="pt-2 text-right">
+          <button onclick="closeEvalModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl">Fermer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-4 md:p-6 bg-white border-t border-slate-200 shrink-0">
+      <form id="chatForm" class="max-w-4xl mx-auto flex gap-3">
+        <input type="text" id="questionInput" placeholder="Posez une question sur l'ensemble ou une sélection de documents..." autocomplete="off"
+          class="flex-1 px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm text-slate-800 placeholder-slate-400 transition-all shadow-inner" />
+        <button type="submit" id="sendBtn"
+          class="px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-700 hover:from-indigo-700 hover:to-violet-800 text-white font-medium text-sm rounded-xl transition-all shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
+          <span>Envoyer</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <script>
+    function getOrCreateSessionId() {
+      let id = localStorage.getItem('rag_session_id');
+      if (!id) {
+        id = 'user_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('rag_session_id', id);
+      }
+      return id;
+    }
+
+    let sessionId = getOrCreateSessionId();
+    document.getElementById('sessionDisplay').innerText = sessionId;
+    let chatHistory = [];
+    let lastQuestion = "";
+    let availableDocs = [];
+    let selectedDocs = new Set();
+
+    function newSession() {
+      if (!confirm("Ouvrir un nouvel espace de travail vierge ?")) return;
+      sessionId = 'user_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('rag_session_id', sessionId);
+      document.getElementById('sessionDisplay').innerText = sessionId;
+      chatHistory = [];
+      selectedDocs.clear();
+      chatMessages.innerHTML = `<div class="max-w-2xl mx-auto my-6 text-center"><h3 class="text-sm font-semibold text-slate-500">Nouvelle session démarrée (${sessionId}). Importez vos documents.</h3></div>`;
+      loadDocuments();
+    }
+
+    const chatMessages = document.getElementById('chatMessages');
+    const chatForm = document.getElementById('chatForm');
+    const questionInput = document.getElementById('questionInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const pdfFileInput = document.getElementById('pdfFileInput');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const statusContent = document.getElementById('statusContent');
+    const documentsList = document.getElementById('documentsList');
+    const clearChatBtn = document.getElementById('clearChatBtn');
+    const evalModal = document.getElementById('evalModal');
+    const evalModalBody = document.getElementById('evalModalBody');
+    const filterSummary = document.getElementById('filterSummary');
+    const targetDocsHeader = document.getElementById('targetDocsHeader');
+
+    function useSuggestion(text) { questionInput.value = text; questionInput.focus(); }
+    function scrollToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
+
+    function formatMessageText(text) {
+      if (!text) return "";
+      return text
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n\n/g, '<br/><br/>')
+        .replace(/\n/g, '<br/>');
+    }
+
+    function appendUserMessage(text) {
+      const d = document.createElement('div');
+      d.className = "flex justify-end";
+      d.innerHTML = `<div class="max-w-xl bg-violet-700 text-white px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm text-sm">${formatMessageText(text)}</div>`;
+      chatMessages.appendChild(d);
+      scrollToBottom();
+    }
+
+    function createBotMessageContainer() {
+      const d = document.createElement('div');
+      d.className = "flex items-start gap-3";
+      d.innerHTML = `
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm text-xs font-bold mt-1">M</div>
+        <div class="max-w-2xl bg-white border border-slate-200/80 p-4 rounded-2xl rounded-tl-sm shadow-sm text-sm text-slate-800 space-y-2.5">
+          <div class="meta-badges flex flex-wrap items-center gap-1.5 text-xs hidden"></div>
+          <div class="content-box leading-relaxed"></div>
+          <div class="sources-box hidden mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+            <span class="font-semibold text-slate-400">Sources vérifiées :</span>
+            <div class="sources-pills flex flex-wrap gap-1.5"></div>
+          </div>
+        </div>`;
+      chatMessages.appendChild(d);
+      scrollToBottom();
+      return {
+        contentBox: d.querySelector('.content-box'),
+        sourcesBox: d.querySelector('.sources-box'),
+        sourcesPills: d.querySelector('.sources-pills'),
+        metaBadges: d.querySelector('.meta-badges')
+      };
+    }
+
+    // --- Chat SSE Streaming avec Niveau 4 (Cache & CRAG & Confidence) ---
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = questionInput.value.trim();
+      if (!text) return;
+      lastQuestion = text;
+
+      appendUserMessage(text);
+      questionInput.value = "";
+      questionInput.disabled = true;
+      sendBtn.disabled = true;
+
+      const botUI = createBotMessageContainer();
+      botUI.contentBox.innerHTML = '<span class="inline-flex items-center gap-1 text-slate-400 text-xs italic"><span class="w-2 h-2 rounded-full bg-violet-600 animate-ping"></span> Recherche Hybride (Dense + Sparse RRF)...</span>';
+
+      let fullResponse = "";
+      let capturedSources = [];
+      let capturedMeta = null;
+
+      const activeFilters = selectedDocs.size > 0 ? Array.from(selectedDocs) : [];
+
+      try {
+        const response = await fetch('/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            texte: text,
+            session_id: sessionId,
+            historique: chatHistory,
+            filtres_documents: activeFilters
+          })
+        });
+
+        if (!response.ok) throw new Error(`Erreur serveur (${response.status})`);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const parsed = JSON.parse(line.substring(6));
+                if (parsed.token) {
+                  fullResponse += parsed.token;
+                  botUI.contentBox.innerHTML = formatMessageText(fullResponse);
+                  scrollToBottom();
+                }
+                if (parsed.sources && parsed.sources.length > 0) {
+                  capturedSources = parsed.sources;
+                }
+                if (parsed.meta) {
+                  capturedMeta = parsed.meta;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+
+        // Affichage des badges Niveau 4 (Cache & Confiance)
+        if (capturedMeta) {
+          botUI.metaBadges.classList.remove('hidden');
+          let badgesHtml = '';
+
+          if (capturedMeta.cached) {
+            badgesHtml += `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                ⚡ Cache Sémantique (&lt;10ms)
+              </span>`;
+          }
+
+          if (capturedMeta.confidence_score) {
+            const conf = capturedMeta.confidence_score;
+            let color = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+            if (conf < 50) color = 'bg-red-50 text-red-800 border-red-200';
+            else if (conf < 75) color = 'bg-blue-50 text-blue-800 border-blue-200';
+
+            badgesHtml += `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${color} border">
+                🎯 Confiance : ${conf}%
+              </span>`;
+          }
+
+          if (capturedMeta.guardrail_triggered) {
+            badgesHtml += `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300">
+                🛡️ Coupe-circuit Anti-Hallucination activé
+              </span>`;
+          }
+
+          botUI.metaBadges.innerHTML = badgesHtml;
+        }
+
+        if (capturedSources.length > 0) {
+          botUI.sourcesBox.classList.remove('hidden');
+          botUI.sourcesPills.innerHTML = capturedSources.map(s => `
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-violet-50 text-violet-800 border border-violet-200 font-medium text-xs">
+              📄 ${s}
+            </span>
+          `).join('');
+        }
+
+        chatHistory.push({
+          role: 'user',
+          content: text
+        });
+        chatHistory.push({
+          role: 'assistant',
+          content: fullResponse,
+          sources: capturedSources,
+          confidence_score: capturedMeta ? capturedMeta.confidence_score : null,
+          cached: capturedMeta ? capturedMeta.cached : false
+        });
+
+      } catch (err) {
+        botUI.contentBox.innerHTML = `<span class="text-red-500 font-medium">⚠️ Erreur : ${err.message}</span>`;
+      } finally {
+        questionInput.disabled = false;
+        sendBtn.disabled = false;
+        questionInput.focus();
+        scrollToBottom();
+      }
+    });
+
+    // --- Export de Rapport d'Analyse (Niveau 4) ---
+    async function exporterRapport() {
+      try {
+        const res = await fetch('/export/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            messages: chatHistory,
+            filtres_documents: Array.from(selectedDocs)
+          })
+        });
+
+        if (!res.ok) throw new Error("Erreur lors de la génération du rapport");
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rapport_rag_${sessionId.substring(0, 8)}.md`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        alert("Erreur lors du téléchargement : " + err.message);
+      }
+    }
+
+    // --- Modal Évaluation RAG ---
+    function closeEvalModal() { evalModal.classList.add('hidden'); }
+
+    async function evaluerQualite() {
+      const q = lastQuestion || "Fais une synthèse de mes documents";
+      evalModal.classList.remove('hidden');
+      evalModalBody.innerHTML = `
+        <div class="flex items-center justify-center p-8">
+          <span class="w-6 h-6 border-2 border-violet-600 border-t-transparent rounded-full animate-spin"></span>
+          <span class="ml-3 font-medium text-slate-700">Calcul des métriques d'audit...</span>
+        </div>`;
+
+      const activeFilters = selectedDocs.size > 0 ? Array.from(selectedDocs) : [];
+
+      try {
+        const res = await fetch('/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q, session_id: sessionId, filtres_documents: activeFilters })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const m = data.metrics;
+        evalModalBody.innerHTML = `
+          <div class="p-3 bg-slate-50 rounded-xl text-xs space-y-1 border border-slate-100">
+            <p><span class="font-semibold text-slate-500">Question évaluée :</span> "${q}"</p>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-3 text-center">
+            <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+              <div class="text-2xl font-bold text-emerald-700">${m.fidelite}%</div>
+              <div class="text-[11px] font-semibold text-emerald-900 mt-1">Fidélité</div>
+              <div class="text-[10px] text-slate-500">Non-hallucination</div>
+            </div>
+            <div class="p-3 bg-blue-50 border border-blue-100 rounded-xl">
+              <div class="text-2xl font-bold text-blue-700">${m.pertinence_reponse}%</div>
+              <div class="text-[11px] font-semibold text-blue-900 mt-1">Pertinence</div>
+              <div class="text-[10px] text-slate-500">Réponse directe</div>
+            </div>
+            <div class="p-3 bg-purple-50 border border-purple-100 rounded-xl">
+              <div class="text-2xl font-bold text-purple-700">${m.precision_contexte}%</div>
+              <div class="text-[11px] font-semibold text-purple-900 mt-1">Précision</div>
+              <div class="text-[10px] text-slate-500">Qualité contexte</div>
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-gradient-to-r from-violet-500/10 to-indigo-500/10 border border-violet-200/80 rounded-xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-bold text-slate-900">Score Global RAG</p>
+              <p class="text-[11px] text-slate-600">${m.analyse}</p>
+            </div>
+            <span class="text-2xl font-black text-violet-700">${m.score_global}%</span>
+          </div>
+        `;
+      } catch (e) {
+        evalModalBody.innerHTML = `<div class="p-4 bg-red-50 text-red-700 rounded-xl text-xs font-medium">⚠️ Échec : ${e.message}</div>`;
+      }
+    }
+
+    // --- Multi-Documents Management & Filter Checkboxes ---
+    function updateFilterDisplay() {
+      if (selectedDocs.size === 0) {
+        filterSummary.innerText = "Recherche sur tous les documents";
+        targetDocsHeader.innerText = "Cible : Tous les documents";
+      } else {
+        filterSummary.innerText = `Recherche ciblée sur ${selectedDocs.size} / ${availableDocs.length} doc(s)`;
+        targetDocsHeader.innerText = `Cible : ${selectedDocs.size} document(s) filtré(s)`;
+      }
+    }
+
+    function toggleSelectDoc(sourceName) {
+      if (selectedDocs.has(sourceName)) {
+        selectedDocs.delete(sourceName);
+      } else {
+        selectedDocs.add(sourceName);
+      }
+      updateFilterDisplay();
+    }
+
+    function toggleSelectAll() {
+      const btn = document.getElementById('toggleSelectAllBtn');
+      if (selectedDocs.size === availableDocs.length) {
+        selectedDocs.clear();
+        btn.innerText = "Tout choisir";
+        document.querySelectorAll('.doc-checkbox').forEach(cb => cb.checked = false);
+      } else {
+        availableDocs.forEach(d => selectedDocs.add(d.source));
+        btn.innerText = "Tout déchoisir";
+        document.querySelectorAll('.doc-checkbox').forEach(cb => cb.checked = true);
+      }
+      updateFilterDisplay();
+    }
+
+    async function loadDocuments() {
+      documentsList.innerHTML = '<div class="text-xs text-slate-400 italic p-3 text-center">Chargement...</div>';
+      try {
+        const res = await fetch(`/documents?session_id=${encodeURIComponent(sessionId)}`);
+        const data = await res.json();
+        availableDocs = data.documents || [];
+        
+        if (availableDocs.length === 0) {
+          documentsList.innerHTML = '<div class="text-xs text-slate-400 italic p-3 text-center bg-slate-50 rounded-xl border border-slate-100">Aucun document pour votre session.</div>';
+          filterSummary.innerText = "Aucun document importé";
+        } else {
+          if (selectedDocs.size === 0) {
+            availableDocs.forEach(d => selectedDocs.add(d.source));
+          }
+
+          documentsList.innerHTML = availableDocs.map(doc => {
+            const isChecked = selectedDocs.has(doc.source) ? 'checked' : '';
+            return `
+            <div class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200/70 rounded-xl text-xs font-medium text-slate-700 hover:bg-violet-50/30 transition-colors">
+              <input type="checkbox" ${isChecked} onchange="toggleSelectDoc('${doc.source.replace(/'/g, "\\'")}')" class="doc-checkbox w-3.5 h-3.5 text-violet-600 rounded border-slate-300 focus:ring-violet-500 cursor-pointer" />
+              <div class="truncate flex-1">
+                <p class="truncate font-semibold text-slate-800">${doc.source}</p>
+                <p class="text-[10px] text-slate-400">${doc.chunks} ch. • ${doc.pages} p. • ${doc.date_upload}</p>
+              </div>
+              <button onclick="deleteDoc('${doc.source.replace(/'/g, "\\'")}')" class="text-red-400 hover:text-red-600 transition-colors p-1" title="Supprimer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          `}).join('');
+
+          updateFilterDisplay();
+        }
+      } catch (e) {
+        documentsList.innerHTML = '<div class="text-xs text-red-500 p-3 text-center">Erreur de chargement</div>';
+      }
+    }
+
+    async function deleteDoc(sourceName) {
+      if (!confirm(`Supprimer "${sourceName}" ?`)) return;
+      try {
+        await fetch(`/documents/${encodeURIComponent(sourceName)}?session_id=${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+        selectedDocs.delete(sourceName);
+        loadDocuments();
+      } catch (e) { alert(e.message); }
+    }
+
+    async function purgeMyDocuments() {
+      if (!confirm('Supprimer tous les documents de votre session ?')) return;
+      try {
+        await fetch(`/clear?session_id=${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+        chatHistory = [];
+        selectedDocs.clear();
+        loadDocuments();
+      } catch (e) { alert(e.message); }
+    }
+
+    // --- Multi-Upload PDF ---
+    pdfFileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files || files.length === 0) return;
+
+      uploadStatus.classList.remove('hidden');
+      statusContent.className = "p-3 rounded-xl text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-2";
+      statusContent.innerHTML = `
+        <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        Ingestion multi-fichiers (${files.length} document(s))...`;
+
+      const formData = new FormData();
+      files.forEach(f => formData.append('files', f));
+      formData.append('session_id', sessionId);
+
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.message || `Erreur (${res.status})`);
+        statusContent.className = "p-3 rounded-xl text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-2";
+        statusContent.innerHTML = `✅ ${result.message}`;
+        files.forEach(f => selectedDocs.add(f.name));
+        loadDocuments();
+      } catch (error) {
+        statusContent.className = "p-3 rounded-xl text-xs font-medium bg-red-50 text-red-700 border border-red-200 flex items-center gap-2";
+        statusContent.innerHTML = `❌ Échec : ${error.message}`;
+      } finally {
+        pdfFileInput.value = "";
+      }
+    });
+
+    clearChatBtn.addEventListener('click', () => {
+      chatHistory = [];
+      chatMessages.innerHTML = `<div class="max-w-2xl mx-auto my-6 text-center"><h3 class="text-sm font-semibold text-slate-500">Historique réinitialisé.</h3></div>`;
+    });
+
+    loadDocuments();
+  </script>
+</body>
+</html>
